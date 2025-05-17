@@ -4,10 +4,10 @@ on:
   push:
     branches:
       - main
-
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    environment: Task_manager_project_frontend
 
     steps:
     - name: Checkout code
