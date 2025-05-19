@@ -128,6 +128,40 @@
         </p>
       </div>
     </div>
+    <!-- New Password Modal -->
+<div v-if="showNewPasswordModal" class="modal-overlay">
+  <div class="otp-modal">
+    <button class="close-modal" @click="closeNewPasswordModal">
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="18" y1="6" x2="6" y2="18" />
+        <line x1="6" y1="6" x2="18" y2="18" />
+      </svg>
+    </button>
+    <h2>Set a New Password</h2>
+    <p class="otp-subtext">Please create a new password to activate your account.</p>
+    <div class="otp-input-container">
+    <input
+      v-model="newPassword"
+      type="password"
+      placeholder="New password"
+      class="auth-input"
+      required
+    />
+    
+</div>
+    <button class="auth-btn verify-btn" @click="submitNewPassword" :disabled="isSettingPassword">
+      <span v-if="!isSettingPassword">Update Password</span>
+      <span v-else class="verifying-text">
+        <svg class="spinner" viewBox="0 0 50 50">
+          <circle class="path" cx="25" cy="25" r="20" fill="none" stroke-width="5"></circle>
+        </svg>
+        Updating...
+      </span>
+    </button>
+
+    <div v-if="passwordError" class="message error-message">{{ passwordError }}</div>
+  </div>
+</div>
   </div>
 </template>
 
@@ -141,6 +175,11 @@ export default {
       email: '',
       password: '',
       error: '',
+      showNewPasswordModal: false,
+      newPassword: '',
+      isSettingPassword: false,
+      passwordError: '',
+
       showVerificationModal: false,
       otp: Array(6).fill(''),
       resendCooldown: 0,
@@ -151,13 +190,22 @@ export default {
     }
   },
   methods: {
-    
-    async signIn() {
+  
+   async closeNewPasswordModal() {
+  this.showNewPasswordModal = false
+  this.newPassword = ''
+  this.passwordError = ''
+},
+  async signIn() {
   this.error = ''
   try {
     const user = await Auth.signIn(this.email, this.password)
     console.log('Signed in user:', user)
-
+    if (user.challengeName === 'NEW_PASSWORD_REQUIRED') {
+          this.showNewPasswordModal = true
+          this.userForNewPassword = user
+          return
+        }
     // Get group info from token
     const groups = user.signInUserSession.accessToken.payload['cognito:groups']
     console.log('User groups:', groups)
@@ -171,6 +219,32 @@ export default {
   } catch (err) {
     this.error = err.message || 'Login failed'
     console.error('Auth error:', err)
+  }
+},
+async submitNewPassword() {
+  this.isSettingPassword = true
+  this.passwordError = ''
+
+  try {
+    const completedUser = await Auth.completeNewPassword(
+      this.userForNewPassword,
+      this.newPassword
+    )
+
+    const groups = completedUser.signInUserSession.accessToken.payload['cognito:groups']
+    this.showNewPasswordModal = false
+
+    if (groups && groups.includes('Admin')) {
+      this.$router.push('/dashboard-admin')
+    } else {
+      this.$router.push('/dashboard-user')
+    }
+
+  } catch (err) {
+    this.passwordError = err.message || 'Failed to set new password'
+    console.error('Password error:', err)
+  } finally {
+    this.isSettingPassword = false
   }
 },
     
@@ -219,7 +293,7 @@ export default {
         setTimeout(async () => {
           try {
             await Auth.signIn(this.email, this.password)
-            this.$router.push('/dashboard')
+            this.$router.push('/dashboard-user')
           } catch (loginErr) {
             this.showVerificationFeedback('Login failed after verification. Please try logging in again.', 'error')
           }
