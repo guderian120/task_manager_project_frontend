@@ -12,7 +12,14 @@
         </div>
       </div>
     </header>
-
+<!-- Notification Toast -->
+    <div v-if="notification.show" class="notification-toast" :class="notification.type" id="global-notification">
+      <i class="fas" :class="{
+        'fa-check-circle': notification.type === 'success',
+        'fa-exclamation-circle': notification.type === 'error'
+      }"></i>
+      {{ notification.message }}
+    </div>
     <!-- Main Content -->
     <main class="dashboard-content">
       <!-- Stats Overview -->
@@ -121,18 +128,19 @@
             <div class="task-footer">
               <div class="task-assignee">
                 <i class="fas fa-users"></i>
-                <span v-for="(assignee, index) in task.assignedTo" :key="index">
-                  {{ formatAssigneeDisplay(assignee) }}{{ index < task.assignedTo.length - 1 ? ', ' : '' }}
-                </span>
+                <div class="assignee-emails">
+                  <div v-for="(assignee, index) in task.assignedTo" :key="index" class="assignee-email">
+                    <a :href="'mailto:' + assignee.email" target="_blank">{{ assignee.email }}</a>
+                  </div>
+                </div>
               </div>
               <div class="task-deadline" :class="{ 'urgent': isUrgent(task.deadline) }">
-                <i class="fas fa-calendar-alt"></i> {{ formatDate(task.deadline) }}
+                <i class="fas fa-calendar-alt"></i> {{ formatDateOnly(task.deadline) }}
               </div>
             </div>
           </div>
         </div>
       </div>
-
       <!-- Task Detail Modal -->
       <div v-if="selectedTask" class="task-detail-modal" @click.self="selectedTask = null">
         <div class="modal-content">
@@ -147,7 +155,7 @@
             <span class="task-status" :class="getStatusClass(selectedTask.status)">
               {{ selectedTask.status }}
             </span>
-            <button @click="updateTaskStatus" class="status-update-btn">
+            <button @click="cycleTaskStatus(selectedTask.taskId,selectedTask.status)" class="status-update-btn">
               <i class="fas fa-sync-alt"></i> Update Status
             </button>
           </div>
@@ -160,203 +168,148 @@
                 <p>{{ selectedTask.description }}</p>
               </div>
               
-              <div class="detail-section">
-                <h3><i class="fas fa-stream"></i> Subtasks</h3>
-                <div class="subtasks-list">
-                  <div v-for="(subtask, index) in selectedTask.subtasks" :key="index" class="subtask-item">
-                    <input 
-                      type="checkbox" 
-                      :id="'subtask-' + index"
-                      v-model="subtask.completed"
-                      @change="updateSubtask(subtask)"
-                    >
-                    <label :for="'subtask-' + index" :class="{ 'completed': subtask.completed }">
-                      {{ subtask.title }}
-                    </label>
-                    <span class="subtask-status">
-                      {{ subtask.completed ? 'Completed' : 'Pending' }}
+             
+              
+              <div class="detail-section" v-if="selectedTask.goals && selectedTask.goals.length">
+                <h3><i class="fas fa-bullseye"></i> Goals Progress</h3>
+                <div class="goals-progress">
+              <div v-for="(goal, index) in selectedTask.goals" :key="index" class="goal-item">
+              <div class="goal-header">
+                <div class="goal-title-wrapper">
+                  <span class="goal-title">{{ goal.title || goal.name }}</span>
+                  <span class="goal-percentage">{{ goal.progress }}%</span>
+                </div>
+                <div class="goal-meta">
+                  <span v-if="goal.dueDate" class="goal-deadline">
+                    <i class="fas fa-calendar-alt"></i> Due: {{ formatDate(goal.dueDate) }}
+                    <span class="days-remaining" :class="getDeadlineClass(goal.dueDate)">
+                      ({{ calculateDaysRemaining(goal.dueDate) }})
                     </span>
-                  </div>
-                  <div class="add-subtask">
-                    <input 
-                      v-model="newSubtask" 
-                      placeholder="Add new subtask"
-                      @keyup.enter="addSubtask"
-                    >
-                    <button @click="addSubtask" class="add-subtask-btn">
-                      <i class="fas fa-plus"></i> Add
-                    </button>
-                  </div>
+                  </span>
+                  <span v-if="goal.assignee" class="goal-assignee">
+                  <i class="fas fa-user"></i> {{ formatAssigneeDisplay(goal.assignee) }}
+                </span>
+              </div>
+            </div>
+            
+            <div class="progress-bar">
+              <div 
+                class="progress-fill" 
+                :style="{ width: goal.progress + '%' }"
+                :class="getProgressClass(goal.progress)"
+              ></div>
+            </div>
+            
+            <div class="goal-details">
+              <div v-if="goal.description" class="goal-description">
+                <p>{{ goal.description }}</p>
+              </div>
+              
+              <div class="goal-stats">
+                <span v-if="goal.completed !== undefined" class="goal-stat">
+                  <i class="fas fa-check-circle"></i> {{ goal.completed }}/{{ goal.total }} completed
+                </span>
+                <span v-if="goal.priority" class="goal-stat">
+                  <i class="fas fa-flag"></i> Priority: 
+                  <span :class="'priority-' + goal.priority.toLowerCase()">
+                    {{ goal.priority }}
+                  </span>
+                </span>
+                <span v-if="goal.createdAt" class="goal-stat">
+                  <i class="fas fa-clock"></i> Created: {{ formatDateShort(goal.createdAt) }}
+                </span>
+              </div>
+              
+              <div v-if="goal.tags && goal.tags.length" class="goal-tags">
+                <span v-for="(tag, tagIndex) in goal.tags" :key="tagIndex" class="tag">
+                  {{ tag }}
+                </span>
+              </div>
+            </div>
+          </div>
                 </div>
               </div>
               
-              <div class="detail-section">
-                <h3><i class="fas fa-history"></i> Timeline</h3>
-                <div class="timeline">
-                  <div class="timeline-item" v-for="(event, index) in selectedTask.timeline" :key="index">
-                    <div class="timeline-date">{{ formatDateShort(event.date) }}</div>
-                    <div class="timeline-dot" :class="'dot-' + index"></div>
-                    <div class="timeline-content">{{ event.action }}</div>
-                  </div>
-                </div>
-              </div>
-              
-              <div class="detail-section">
-                <h3><i class="fas fa-paperclip"></i> Attachments</h3>
-                <div class="attachments">
-                  <div v-for="file in selectedTask.attachments" :key="file.name" class="file-item">
-                    <i :class="'fas fa-file-' + getFileIcon(file.name)"></i> 
-                    <div class="file-info">
-                      <span class="file-name">{{ file.name }}</span>
-                      <span class="file-size">{{ file.size }}</span>
-                    </div>
-                    <a :href="file.url" target="_blank" class="download-btn">
-                      <i class="fas fa-download"></i>
-                    </a>
-                  </div>
-                  <div class="upload-area">
-                    <input 
-                      type="file" 
-                      id="file-upload"
-                      @change="handleFileUpload"
-                      multiple
-                    >
-                    <label for="file-upload" class="upload-btn">
-                      <i class="fas fa-cloud-upload-alt"></i> Upload Files
-                    </label>
-                  </div>
-                </div>
-              </div>
+          
             </div>
             
             <!-- Right Column - Assignee Metrics -->
             <div class="assignee-metrics">
-              <div class="detail-section">
-                <h3><i class="fas fa-users"></i> Assignees</h3>
-                <div class="assignee-list">
-                  <div v-for="assignee in selectedTask.assignedTo" :key="assignee.email" class="assignee-card">
-                    <div class="assignee-avatar" :style="{ backgroundColor: stringToColor(assignee.name || assignee.email) }">
-                      {{ getInitials(assignee.name || assignee.email) }}
+             <div class="detail-section">
+              <h3><i class="fas fa-users"></i> Assignees</h3>
+              <div class="assignee-list">
+                <div v-for="assignee in assigneesWithProgress" :key="assignee.email" class="assignee-card">
+                  <div class="assignee-avatar" :style="{ backgroundColor: stringToColor(assignee.name || assignee.email) }">
+                    {{ getInitials(assignee.name || assignee.email) }}
+                  </div>
+                  <div class="assignee-info">
+                    <div class="assignee-name">{{ formatAssigneeDisplay(assignee.email) }}</div>
+                    <div class="assignee-role">{{ assignee.role || 'Team Member' }}</div>
+                    <div class="assignee-goal-count">
+                      <i class="fas fa-bullseye"></i> {{ assignee.goalCount }} goals
                     </div>
-                    <div class="assignee-info">
-                      <div class="assignee-name">{{ formatAssigneeDisplay(assignee.email) }}</div>
-                      <div class="assignee-email">{{ formatAssigneeDisplay(assignee.name) }}</div>
-                      <div class="assignee-role">{{ assignee.role || 'Team Member' }}</div>
+                  </div>
+                <div class="assignee-progress">
+                <div class="progress-bar">
+                  <div 
+                    class="progress-fill" 
+                    :style="{ width: assignee.progress + '%' }"
+                    :class="getProgressClass(assignee.progress)"
+                  ></div>
+                </div>
+                <div class="progress-text">
+                  {{ assignee.progress }}% complete ({{ assignee.goalCount }} goals)
+                </div>
+                    
+                    <!-- Show assigned goals breakdown -->
+                    <div class="assignee-goals-breakdown" v-if="getAssigneeGoals(assignee).length">
+                    <div v-for="goal in getAssigneeGoals(assignee)" :key="goal.name" class="goal-breakdown">
+                      <span class="goal-breakdown-name">{{ goal.title }}</span>
+                      <span class="goal-breakdown-progress">{{ goal.progress }}%</span>
                     </div>
-                    <div class="assignee-progress">
-                      <div class="progress-bar">
-                        <div 
-                          class="progress-fill" 
-                          :style="{ width: assignee.progress + '%' }"
-                          :class="getProgressClass(assignee.progress)"
-                        ></div>
-                      </div>
-                      <div class="progress-text">{{ assignee.progress }}% complete</div>
-                    </div>
+                  </div>
                   </div>
                 </div>
               </div>
+            </div>
               
-              <div class="detail-section">
-                <h3><i class="fas fa-chart-line"></i> Performance Metrics</h3>
-                <div class="metrics-grid">
-                  <div class="metric-card">
-                    <div class="metric-value">{{ selectedTask.completionRate }}%</div>
-                    <div class="metric-label">Overall Completion</div>
-                    <div class="metric-trend" :class="selectedTask.completionTrend >= 0 ? 'up' : 'down'">
-                      <i :class="selectedTask.completionTrend >= 0 ? 'fas fa-arrow-up' : 'fas fa-arrow-down'"></i>
-                      {{ Math.abs(selectedTask.completionTrend) }}%
-                    </div>
-                  </div>
-                  <div class="metric-card">
-                    <div class="metric-value">{{ selectedTask.daysRemaining }}</div>
-                    <div class="metric-label">Days Remaining</div>
-                    <div class="metric-trend" :class="selectedTask.daysTrend > 0 ? 'good' : 'bad'">
-                      {{ selectedTask.daysTrend > 0 ? 'Ahead' : 'Behind' }}
-                    </div>
-                  </div>
-                  <div class="metric-card">
-                    <div class="metric-value">{{ selectedTask.hoursLogged }}</div>
-                    <div class="metric-label">Hours Logged</div>
-                    <div class="metric-trend">
-                      {{ selectedTask.hoursPerDay }}h/day
-                    </div>
-                  </div>
-                  <div class="metric-card">
-                    <div class="metric-value">{{ selectedTask.checklistCompleted }}/{{ selectedTask.checklistTotal }}</div>
-                    <div class="metric-label">Checklist Items</div>
-                    <div class="metric-trend">
-                      {{ Math.round((selectedTask.checklistCompleted / selectedTask.checklistTotal) * 100) }}%
-                    </div>
-                  </div>
-                </div>
-                
-                <div class="progress-chart">
-                  <h4>Completion Progress</h4>
-                  <div class="chart-bars">
-                    <div v-for="(day, index) in selectedTask.progressHistory" :key="index" class="chart-bar-container">
-                      <div class="chart-bar" :style="{ height: day.completion + '%' }"></div>
-                      <div class="chart-label">{{ day.day }}</div>
-                    </div>
-                  </div>
+          <div class="detail-section">
+            <h3><i class="fas fa-chart-line"></i> Performance Metrics</h3>
+            <div class="metrics-grid">
+              <div class="metric-card">
+                <div class="metric-value">{{ calculateGoalsCompletion() }}%</div>
+                <div class="metric-label">Goals Completion</div>
+                <div class="metric-trend" :class="getCompletionTrendClass()">
+                  <i :class="getCompletionTrendIcon()"></i>
+                  {{ getCompletionTrendText() }}
                 </div>
               </div>
+              <div class="metric-card">
+                <div class="metric-value">{{ getAverageGoalProgress() }}%</div>
+                <div class="metric-label">Avg. Goal Progress</div>
+              </div>
+              <div class="metric-card">
+                <div class="metric-value">{{ countUrgentGoals() }}</div>
+                <div class="metric-label">Urgent Goals</div>
+              </div>
+              <div class="metric-card">
+                <div class="metric-value">{{ getGoalsBehindSchedule() }}</div>
+                <div class="metric-label">Behind Schedule</div>
+              </div>
+            </div>
+            
+            <div class="progress-chart" v-if="selectedTask.goals && selectedTask.goals.length">
+              <h4>Goals Progress</h4>
+              <div class="chart-bars">
+                <div v-for="(goal, index) in selectedTask.goals" :key="index" class="chart-bar-container">
+                  <div class="chart-bar" :style="{ height: goal.progress + '%' }"></div>
+                  <div class="chart-label">{{ goal.title?.substring(0, 3) || 'G' + index }}</div>
+                </div>
+              </div>
+            </div>
+          </div>
               
-              <div class="detail-section">
-                <h3><i class="fas fa-comments"></i> Comments</h3>
-                <div class="comments-section">
-                  <div v-for="comment in selectedTask.comments" :key="comment.id" class="comment">
-                    <div class="comment-avatar" :style="{ backgroundColor: stringToColor(comment.author) }">
-                      {{ getInitials(comment.author) }}
-                    </div>
-                    <div class="comment-content">
-                      <div class="comment-header">
-                        <span class="comment-author">{{ comment.author }}</span>
-                        <span class="comment-date">{{ formatDateTime(comment.date) }}</span>
-                      </div>
-                      <div class="comment-text">{{ comment.text }}</div>
-                      <div v-if="comment.attachments" class="comment-attachments">
-                        <a 
-                          v-for="file in comment.attachments" 
-                          :key="file.name" 
-                          :href="file.url" 
-                          target="_blank"
-                          class="comment-file"
-                        >
-                          <i :class="'fas fa-file-' + getFileIcon(file.name)"></i> {{ file.name }}
-                        </a>
-                      </div>
-                    </div>
-                  </div>
-                  <div class="add-comment">
-                    <div class="comment-avatar" :style="{ backgroundColor: stringToColor(currentUser.name) }">
-                      {{ getInitials(currentUser.name) }}
-                    </div>
-                    <div class="comment-input">
-                      <textarea 
-                        v-model="newComment" 
-                        placeholder="Add a comment..."
-                        @keyup.enter="addComment"
-                      ></textarea>
-                      <div class="comment-actions">
-                        <label for="comment-file-upload" class="attach-btn">
-                          <i class="fas fa-paperclip"></i>
-                          <input 
-                            type="file" 
-                            id="comment-file-upload"
-                            @change="handleCommentFileUpload"
-                            multiple
-                            hidden
-                          >
-                        </label>
-                        <button @click="addComment" class="comment-btn">
-                          <i class="fas fa-paper-plane"></i> Post
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
+         
             </div>
           </div>
         </div>
@@ -393,94 +346,100 @@ export default {
         { title: 'In Progress', value: 0, icon: 'fas fa-spinner', iconClass: 'yellow' },
         { title: 'Overdue', value: 0, icon: 'fas fa-exclamation-triangle', iconClass: 'red' }
       ],
-      teamMembers: [
-        { name: 'Alex Johnson', email: 'alex@example.com', role: 'Frontend Developer' },
-        { name: 'Maria Garcia', email: 'maria@example.com', role: 'Backend Developer' },
-        { name: 'James Wilson', email: 'james@example.com', role: 'UI/UX Designer' },
-        { name: 'Sarah Chen', email: 'sarah@example.com', role: 'QA Engineer' }
-      ],
-      recentTasks: [],
-      sampleTaskDetail: {
-        taskId: 'task-123',
-        title: 'Implement User Authentication',
-        description: 'Develop a secure authentication system with JWT tokens, role-based access control, and password recovery features.',
-        status: 'in-progress',
-        assignedTo: [
-          { email: 'alex@example.com', name: 'Alex Johnson', progress: 75, role: 'Frontend Developer' },
-          { email: 'maria@example.com', name: 'Maria Garcia', progress: 40, role: 'Backend Developer' }
-        ],
-        subtasks: [
-          { title: 'Design login UI', completed: true },
-          { title: 'Implement JWT token generation', completed: true },
-          { title: 'Create password recovery flow', completed: false },
-          { title: 'Set up role-based permissions', completed: false }
-        ],
-        timeline: [
-          { date: '2023-06-01T00:00:00Z', action: 'Task created' },
-          { date: '2023-06-03T00:00:00Z', action: 'Assigned to team' },
-          { date: '2023-06-05T00:00:00Z', action: 'Frontend components completed' },
-          { date: '2023-06-07T00:00:00Z', action: 'Backend API implemented' }
-        ],
-        attachments: [
-          { name: 'AuthRequirements.pdf', url: '#', size: '2.4 MB' },
-          { name: 'UIMockup.fig', url: '#', size: '3.1 MB' },
-          { name: 'APIDocumentation.md', url: '#', size: '0.5 MB' }
-        ],
-        comments: [
-          { 
-            id: 1, 
-            author: 'Alex Johnson', 
-            text: 'I\'ve completed the login and registration UI components. Please review the mockups attached.', 
-            date: '2023-06-02T14:30:00Z',
-            attachments: [
-              { name: 'LoginMockup.png', url: '#' },
-              { name: 'RegisterMockup.png', url: '#' }
-            ]
+      
+      notification: {
+            show: false,
+            message: '',
+            type: '' // 'success' or 'error'
           },
-          { 
-            id: 2, 
-            author: 'Maria Garcia', 
-            text: 'The JWT token generation is now working. I\'ve pushed the code to the development branch.', 
-            date: '2023-06-04T10:15:00Z' 
-          },
-          { 
-            id: 3, 
-            author: 'James Wilson', 
-            text: 'I\'ve reviewed the UI and have some suggestions for improvement. Let me know when we can discuss.', 
-            date: '2023-06-05T16:45:00Z' 
-          }
-        ],
-        completionRate: 58,
-        completionTrend: 12,
-        daysRemaining: 7,
-        daysTrend: -2,
-        hoursLogged: 24,
-        hoursPerDay: 3.4,
-        checklistCompleted: 2,
-        checklistTotal: 4,
-        progressHistory: [
-          { day: 'Mon', completion: 10 },
-          { day: 'Tue', completion: 15 },
-          { day: 'Wed', completion: 25 },
-          { day: 'Thu', completion: 40 },
-          { day: 'Fri', completion: 58 }
-        ],
-        deadline: '2023-06-15T00:00:00Z'
-      }
+
+      
     }
   },
-  computed: {
-    filteredTeamMembers() {
-      return this.teamMembers.filter(member => 
-        !this.selectedMembers.some(selected => selected.email === member.email) &&
-        member.email.toLowerCase().includes(this.emailInput.toLowerCase())
-      );
+computed: {
+ assigneesWithProgress() {
+    if (!this.selectedTask?.assignedTo || !this.selectedTask?.goals) {
+      return [];
     }
+    console.log("selected Task:", this.selectedTask.assignedTo);
+    return this.selectedTask.assignedTo.map(assignee => {
+      // Extract email - handle both nested and flat structures
+      const assigneeEmail = assignee.email?.email || assignee.email;
+      const assigneeName = assignee.name?.name || assignee.name || assigneeEmail;
+      // Generate all possible matching identifiers
+      const assigneeIdentifiers = [
+        assigneeEmail,
+        assigneeName,
+        ...(assigneeEmail ? [assigneeEmail.split('@')[0]] : []),
+      ].filter(Boolean)
+       .map(id => this.normalizeAssigneeIdentifier(id));
+
+      console.log('Assignee:', assigneeEmail, 'Identifiers:', assigneeIdentifiers);
+      console.log('goals:', this.selectedTask.goals);
+      // Find matching goals
+      const assignedGoals = this.selectedTask.goals.filter(goal => {
+        if (!goal.assignee) return false;
+        
+        // Normalize goal's assignee field
+        const goalAssignee = this.normalizeAssigneeIdentifier(goal.assignee);
+        console.log(`Goal "${goal.title}" assignee:`, goalAssignee);
+        
+        // Check if any identifier matches
+        return assigneeIdentifiers.some(id => id === goalAssignee);
+      });
+
+      console.log('Matched goals:', assignedGoals);
+
+      // Calculate progress
+      const progress = assignedGoals.length > 0
+        ? Math.round(assignedGoals.reduce((sum, goal) => sum + (goal.progress || 0), 0) / assignedGoals.length)
+        : 0;
+
+      return {
+        ...assignee,
+        email: assigneeEmail,
+        name: assigneeName,
+        progress,
+        goalCount: assignedGoals.length,
+        assignedGoals // for debugging
+      };
+    });
   },
-  async created() {
+  filteredTeamMembers() {
+    return this.teamMembers.filter(member => 
+      !this.selectedMembers.some(selected => selected.email === member.email) &&
+      member.email.toLowerCase().includes(this.emailInput.toLowerCase())
+    );
+  }
+},
+
+   async created() {
+  // Check for pending notification on page load
+  const pendingNotification = localStorage.getItem('pendingNotification');
+  if (pendingNotification) {
+    const notification = JSON.parse(pendingNotification);
+    
+    // Only show if notification is recent (less than 5 seconds old)
+    if (new Date().getTime() - notification.timestamp < 5000) {
+      this.notification = {
+        show: true,
+        message: notification.message,
+        type: notification.type
+      };
+      
+      // Clear after 3 seconds
+      setTimeout(() => {
+        this.notification.show = false;
+      }, 3000);
+    }
+    
+    // Clear the stored notification
+    localStorage.removeItem('pendingNotification');
+  }
     await this.fetchTeamMembers();
     await this.fetchTasks();
     await this.getCurrentUser();
+    
   },
   mounted() {
     window.addEventListener('keydown', this.handleKeydown);
@@ -489,15 +448,156 @@ export default {
     window.removeEventListener('keydown', this.handleKeydown);
   },
   methods: {
+    showNotification(message, type) {
+  // Store notification in localStorage before showing
+  localStorage.setItem('pendingNotification', JSON.stringify({
+    message,
+    type,
+    timestamp: new Date().getTime()
+  }));
+  
+  this.notification = {
+    show: true,
+    message,
+    type
+  };
+  
+  // Clear after 3 seconds (if not reloading)
+  setTimeout(() => {
+    this.notification.show = false;
+  }, 3000);
+},
+getDeepProperty(obj, path) {
+    return path.split('.').reduce((o, p) => o?.[p], obj);
+  },
+  
+  // Extract username from email
+  extractUsername(email) {
+    return email.split('@')[0];
+  },
+  
+  // Normalize any assignee identifier format
+ normalizeAssigneeIdentifier(assignee) {
+    if (!assignee) return '';
+    
+    // If assignee is an object with email or name
+    if (typeof assignee === 'object') {
+      return this.normalizeAssigneeIdentifier(assignee.email || assignee.name || '');
+    }
+    
+    // Handle string case
+    const str = String(assignee).toLowerCase().trim();
+    
+    // Clean common formats
+    return str.replace(/^.*</, '').replace(/>.*$/, ''); // removes "Name <email>" format
+  },
+    calculateGoalsCompletion() {
+      if (!this.selectedTask.goals || this.selectedTask.goals.length === 0) return 0;
+      const completedGoals = this.selectedTask.goals.filter(goal => goal.progress === 100).length;
+      return Math.round((completedGoals / this.selectedTask.goals.length) * 100);
+    },
+    getAverageGoalProgress() {
+      if (!this.selectedTask.goals || this.selectedTask.goals.length === 0) return 0;
+      const totalProgress = this.selectedTask.goals.reduce((sum, goal) => sum + goal.progress, 0);
+      return Math.round(totalProgress / this.selectedTask.goals.length);
+    },
+    countUrgentGoals() {
+      if (!this.selectedTask.goals) return 0;
+      const now = new Date();
+      return this.selectedTask.goals.filter(goal => {
+        if (!goal.dueDate) return false;
+        const dueDate = new Date(goal.dueDate);
+        const diffDays = Math.ceil((dueDate - now) / (1000 * 60 * 60 * 24));
+        return diffDays <= 3 || diffDays < 0;
+      }).length;
+    },
+    getGoalsBehindSchedule() {
+      if (!this.selectedTask.goals) return 0;
+      const now = new Date();
+      return this.selectedTask.goals.filter(goal => {
+        if (!goal.dueDate || !goal.createdAt) return false;
+        
+        const createdDate = new Date(goal.createdAt);
+        const dueDate = new Date(goal.dueDate);
+        const totalDays = Math.ceil((dueDate - createdDate) / (1000 * 60 * 60 * 24));
+        const daysPassed = Math.ceil((now - createdDate) / (1000 * 60 * 60 * 24));
+        
+        if (daysPassed <= 0) return false;
+        if (totalDays <= 0) return true;
+        
+        const expectedProgress = Math.min(100, Math.round((daysPassed / totalDays) * 100));
+        return goal.progress < expectedProgress;
+      }).length;
+    },
+    getCompletionTrendClass() {
+      const completion = this.calculateGoalsCompletion();
+      if (completion >= 80) return 'high';
+      if (completion >= 50) return 'medium';
+      return 'low';
+    },
+    getCompletionTrendIcon() {
+      const behind = this.getGoalsBehindSchedule();
+      if (behind === 0) return 'fas fa-arrow-up trend-up';
+      return 'fas fa-arrow-down trend-down';
+    },
+    getCompletionTrendText() {
+      const behind = this.getGoalsBehindSchedule();
+      if (behind === 0) return 'On track';
+      return `${behind} behind`;
+    },
+    calculateDaysRemaining(dueDate) {
+      if (!dueDate) return '';
+      const deadline = new Date(dueDate);
+      const today = new Date();
+      const diffTime = deadline - today;
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      
+      if (diffDays === 0) return 'Today';
+      if (diffDays === 1) return 'Tomorrow';
+      if (diffDays === -1) return 'Yesterday';
+      if (diffDays < 0) return `${Math.abs(diffDays)} days overdue`;
+      return `${diffDays} days left`;
+    },
+    getDeadlineClass(dueDate) {
+      if (!dueDate) return '';
+      const deadline = new Date(dueDate);
+      const today = new Date();
+      const diffTime = deadline - today;
+      const diffDays = diffTime / (1000 * 60 * 60 * 24);
+      
+      if (diffDays < 0) return 'overdue';
+      if (diffDays <= 3) return 'urgent';
+      if (diffDays <= 7) return 'warning';
+      return 'normal';
+    },
+    calculateTaskCompletion() {
+      if (!this.selectedTask) return 0;
+      const completed = this.selectedTask.subtasks.filter(s => s.completed).length;
+      return Math.round((completed / this.selectedTask.subtasks.length) * 100);
+    },
+    daysUntilDeadline() {
+      if (!this.selectedTask.deadline) return 'N/A';
+      const deadline = new Date(this.selectedTask.deadline);
+      const today = new Date();
+      const diffTime = deadline - today;
+      return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    },
+    getAssigneeGoals(assignee) {
+      if (!this.selectedTask.goals) return [];
+      const assigneeId = this.normalizeAssigneeIdentifier(assignee);
+      
+      return this.selectedTask.goals.filter(goal => {
+        const goalAssigneeId = this.normalizeAssigneeIdentifier(goal.assignee);
+        return goalAssigneeId === assigneeId;
+      });
+    },
     formatMemberDisplay(member) {
       if (member.name && member.name !== member.email) {
         return `${member.name} (${member.email})`;
       }
       return member.email;
     },
-    
     formatAssigneeDisplay(assignee) {
-      // Handle both string (email) and object formats
       if (typeof assignee === 'string') {
         return assignee;
       }
@@ -506,7 +606,6 @@ export default {
       }
       return assignee.email;
     },
-    
     async fetchTasks() {
       this.isLoadingTasks = true;
       try {
@@ -547,10 +646,7 @@ export default {
         this.isLoadingTasks = false;
       }
     },
-    
     async fetchTeamMembers() {
-      // In a real app, you would fetch this from your API
-      // Using mock data for demonstration
       this.teamMembers = [
         { name: 'Alex Johnson', email: 'alex@example.com', role: 'Frontend Developer' },
         { name: 'Maria Garcia', email: 'maria@example.com', role: 'Backend Developer' },
@@ -558,7 +654,6 @@ export default {
         { name: 'Sarah Chen', email: 'sarah@example.com', role: 'QA Engineer' }
       ];
     },
-    
     async getCurrentUser() {
       try {
         const user = await Auth.currentAuthenticatedUser();
@@ -574,7 +669,6 @@ export default {
         };
       }
     },
-    
     updateStatistics(tasks) {
       const now = new Date();
       
@@ -608,7 +702,6 @@ export default {
         }
       ];
     },
-    
     async createTask() {
       if (this.selectedMembers.length === 0) {
         this.message = 'Please select at least one team member';
@@ -656,7 +749,6 @@ export default {
         this.isCreating = false;
       }
     },
-    
     resetForm() {
       this.title = '';
       this.description = '';
@@ -664,7 +756,6 @@ export default {
       this.selectedMembers = [];
       this.emailInput = '';
     },
-    
     selectMember(member) {
       if (!this.selectedMembers.some(m => m.email === member.email)) {
         this.selectedMembers.push(member);
@@ -672,7 +763,6 @@ export default {
       this.emailInput = '';
       this.showDropdown = false;
     },
-    
     addEmail() {
       if (this.emailInput.trim() && this.isValidEmail(this.emailInput)) {
         if (!this.selectedMembers.some(m => m.email === this.emailInput.trim())) {
@@ -685,22 +775,18 @@ export default {
       }
       this.showDropdown = false;
     },
-    
     removeMember(index) {
       this.selectedMembers.splice(index, 1);
     },
-    
     handleBackspace() {
       if (this.emailInput === '' && this.selectedMembers.length > 0) {
         this.removeMember(this.selectedMembers.length - 1);
       }
     },
-    
     isValidEmail(email) {
       const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       return re.test(email);
     },
-    
     async openTaskDetail(task) {
       try {
         const baseTask = {
@@ -708,10 +794,10 @@ export default {
           ...task,
           assignedTo: [],
           comments: [],
-          attachments: [],
-          subtasks: []
+          subtasks: [],
+          goals: []
         };
-        
+
         if (Array.isArray(task.assignedTo)) {
           baseTask.assignedTo = task.assignedTo.map(email => ({
             email,
@@ -727,26 +813,60 @@ export default {
             role: this.teamMembers.find(m => m.email === task.assignedTo)?.role || 'Team Member'
           }];
         }
-        
+        const session = await Auth.currentSession();
+        const idToken = session.getIdToken().getJwtToken();
+
+        const res = await fetch(`https://3c0x6315c2.execute-api.eu-west-1.amazonaws.com/prod/tasks/${task.taskId}/goals-progress`,
+          {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${idToken}`,
+              'Content-Type': 'application/json'
+            },
+            mode: 'cors'
+          })
+        if (!res.ok) throw new Error('Failed to fetch goals progress');
+        const data = await res.json();
+        console.log(data)
+        baseTask.goals = data.goals || [];
+
         this.selectedTask = baseTask;
       } catch (err) {
         console.error('Error opening task detail:', err);
         this.message = 'Failed to load task details';
       }
     },
+    async cycleTaskStatus(taskId, currentStatus) {
+  const statuses = ['pending', 'in-progress', 'completed'];
+  const nextStatus = statuses[(statuses.indexOf(currentStatus) + 1) % statuses.length];
+
+  try {
+    const session = await Auth.currentSession();
+    const idToken = session.getIdToken().getJwtToken();
     
-    async updateTaskStatus() {
-      const statuses = ['pending', 'in-progress', 'completed', 'overdue'];
-      const currentIndex = statuses.indexOf(this.selectedTask.status);
-      const nextIndex = (currentIndex + 1) % statuses.length;
-      this.selectedTask.status = statuses[nextIndex];
-      
-      this.selectedTask.timeline.push({
-        date: new Date().toISOString(),
-        action: `Status changed to ${this.selectedTask.status}`
-      });
-    },
+    await fetch(`https://3c0x6315c2.execute-api.eu-west-1.amazonaws.com/prod/tasks/${taskId}/status`, {
+      method: 'PUT',
+      mode: 'cors',
+      headers: {
+        'Authorization': `Bearer ${idToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ status: nextStatus })
+    });
+
+    // Show success notification
+    this.showNotification('Task status updated successfully! Reloading...', 'success');
     
+    // Reload the page after 1.5 seconds (enough time to see the toast)
+    setTimeout(() => {
+      window.location.reload();
+    }, 1500);
+    
+  } catch (error) {
+    console.error('Error updating task status:', error);
+    this.showNotification('Failed to update task status', 'error');
+  }
+},
     addComment() {
       if (!this.newComment?.trim()) return;
       
@@ -764,11 +884,9 @@ export default {
       this.selectedTask.comments.unshift(comment);
       this.newComment = '';
     },
-    
     handleCommentFileUpload(event) {
       this.commentFiles = Array.from(event.target.files);
     },
-    
     addSubtask() {
       if (!this.newSubtask.trim()) return;
       
@@ -779,7 +897,6 @@ export default {
       
       this.newSubtask = '';
     },
-    
     updateSubtask(subtask) {
       const action = subtask.completed ? 'completed' : 'marked incomplete';
       this.selectedTask.timeline.push({
@@ -787,25 +904,12 @@ export default {
         action: `Subtask "${subtask.title}" ${action}`
       });
     },
-    
-    handleFileUpload(event) {
-      const files = Array.from(event.target.files);
-      files.forEach(file => {
-        this.selectedTask.attachments.push({
-          name: file.name,
-          size: this.formatFileSize(file.size),
-          url: URL.createObjectURL(file)
-        });
-      });
-    },
-    
     getInitials(name) {
       if (!name || typeof name !== 'string') return '?';
       const parts = name.trim().split(' ');
       if (parts.length === 0) return '?';
       return parts.map(part => part[0]?.toUpperCase() || '').join('').slice(0, 2);
     },
-    
     stringToColor(str) {
       if (!str || typeof str !== 'string') return '#4a89dc';
       let hash = 0;
@@ -815,35 +919,11 @@ export default {
       const hue = Math.abs(hash % 360);
       return `hsl(${hue}, 70%, 60%)`;
     },
-    
     getProgressClass(progress) {
       if (progress >= 80) return 'high';
       if (progress >= 50) return 'medium';
       return 'low';
     },
-    
-    getFileIcon(filename) {
-      if (!filename || typeof filename !== 'string') return '';
-      const extension = filename.split('.').pop().toLowerCase();
-      switch(extension) {
-        case 'pdf': return 'pdf';
-        case 'doc': case 'docx': return 'word';
-        case 'xls': case 'xlsx': return 'excel';
-        case 'ppt': case 'pptx': return 'powerpoint';
-        case 'jpg': case 'jpeg': case 'png': case 'gif': return 'image';
-        case 'zip': case 'rar': return 'archive';
-        default: return '';
-      }
-    },
-    
-    formatFileSize(bytes) {
-      if (bytes === 0) return '0 Bytes';
-      const k = 1024;
-      const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-      const i = Math.floor(Math.log(bytes) / Math.log(k));
-      return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
-    },
-    
     formatDate(dateString) {
       if (!dateString) return 'No deadline';
       const options = { 
@@ -855,13 +935,23 @@ export default {
       };
       return new Date(dateString).toLocaleDateString(undefined, options);
     },
-    
     formatDateShort(dateString) {
       if (!dateString) return '';
       const options = { month: 'short', day: 'numeric' };
       return new Date(dateString).toLocaleDateString(undefined, options);
     },
-    
+
+
+formatDateOnly(dateString) {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    return date.toLocaleDateString(); // or your preferred date formatting
+    // Alternatively for specific format:
+    // return `${date.getDate()}/${date.getMonth() + 1}/${date.getFullYear()}`;
+  },
+
+
+
     formatDateTime(dateString) {
       if (!dateString) return '';
       const options = { 
@@ -873,7 +963,6 @@ export default {
       };
       return new Date(dateString).toLocaleDateString(undefined, options);
     },
-    
     getStatusClass(status) {
       return {
         'completed': status === 'completed',
@@ -882,7 +971,6 @@ export default {
         'pending': status === 'pending'
       }[status] || '';
     },
-    
     isUrgent(deadline) {
       if (!deadline) return false;
       const dueDate = new Date(deadline);
@@ -890,13 +978,11 @@ export default {
       const diffHours = (dueDate - now) / (1000 * 60 * 60);
       return diffHours < 48;
     },
-    
     handleKeydown(e) {
       if (e.key === 'Escape' && this.selectedTask) {
         this.selectedTask = null;
       }
     },
-    
     async signOut() {
       try {
         await Auth.signOut();
@@ -908,1052 +994,6 @@ export default {
   }
 }
 </script>
-
 <style scoped>
-/* Previous styles remain the same, with these additions: */
-
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding-bottom: 15px;
-  margin-bottom: 20px;
-  border-bottom: 1px solid #eee;
-}
-
-.close-btn {
-  background: #f5f5f5;
-  border: none;
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: all 0.3s;
-}
-
-.close-btn:hover {
-  background: #e0e0e0;
-}
-
-.close-btn i {
-  font-size: 18px;
-  color: #666;
-}
-
-/* Rest of the styles remain unchanged */
-/* Base Styles */
-.dashboard-container {
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  color: #333;
-  line-height: 1.6;
-}
-
-.dashboard-header {
-  background-color: #2c3e50;
-  color: white;
-  padding: 15px 0;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-}
-
-.header-content {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 0 20px;
-}
-
-.user-info {
-  display: flex;
-  align-items: center;
-  gap: 20px;
-}
-
-.logout-btn {
-  background-color: #e74c3c;
-  color: white;
-  border: none;
-  padding: 8px 15px;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: background-color 0.3s;
-}
-
-.logout-btn:hover {
-  background-color: #c0392b;
-}
-
-.dashboard-content {
-  max-width: 1200px;
-  margin: 30px auto;
-  padding: 0 20px;
-}
-
-/* Stats Grid */
-.stats-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 20px;
-  margin-bottom: 30px;
-}
-
-.stat-card {
-  background-color: white;
-  border-radius: 8px;
-  padding: 20px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
-  position: relative;
-  overflow: hidden;
-}
-
-.stat-value {
-  font-size: 28px;
-  font-weight: bold;
-  margin-bottom: 5px;
-}
-
-.stat-title {
-  color: #7f8c8d;
-  font-size: 14px;
-}
-
-.stat-icon {
-  position: absolute;
-  right: 20px;
-  top: 20px;
-  font-size: 40px;
-  opacity: 0.2;
-}
-
-.stat-icon.blue { color: #3498db; }
-.stat-icon.green { color: #2ecc71; }
-.stat-icon.yellow { color: #f1c40f; }
-.stat-icon.red { color: #e74c3c; }
-
-/* Task Creation Panel */
-.task-creation-panel {
-  background-color: white;
-  border-radius: 8px;
-  padding: 25px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
-  margin-bottom: 30px;
-}
-
-.panel-title {
-  margin-top: 0;
-  margin-bottom: 20px;
-  font-size: 20px;
-  color: #2c3e50;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.task-form {
-  display: flex;
-  flex-direction: column;
-  gap: 15px;
-}
-
-.form-group {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.form-group label {
-  font-weight: 500;
-  color: #2c3e50;
-}
-
-.form-group input,
-.form-group textarea,
-.form-group select {
-  padding: 10px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 14px;
-}
-
-.form-group textarea {
-  min-height: 100px;
-  resize: vertical;
-}
-
-.form-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 20px;
-}
-
-.create-btn {
-  background-color: #3498db;
-  color: white;
-  border: none;
-  padding: 12px;
-  border-radius: 4px;
-  font-size: 16px;
-  cursor: pointer;
-  transition: background-color 0.3s;
-  margin-top: 10px;
-}
-
-.create-btn:hover:not(:disabled) {
-  background-color: #2980b9;
-}
-
-.create-btn:disabled {
-  background-color: #95a5a6;
-  cursor: not-allowed;
-}
-
-.message {
-  padding: 10px;
-  border-radius: 4px;
-  margin-top: 10px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.message.success {
-  background-color: #d5f5e3;
-  color: #27ae60;
-}
-
-.message.error {
-  background-color: #fadbd8;
-  color: #e74c3c;
-}
-
-/* Multi-Select Component */
-.multi-select-container {
-  position: relative;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  padding: 8px;
-  background: white;
-  min-height: 42px;
-}
-
-.selected-members {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  align-items: center;
-}
-
-.member-chip {
-  background-color: #e0e0e0;
-  padding: 4px 8px 4px 12px;
-  border-radius: 16px;
-  display: inline-flex;
-  align-items: center;
-  font-size: 14px;
-}
-
-.remove-chip {
-  background: none;
-  border: none;
-  margin-left: 6px;
-  cursor: pointer;
-  color: #666;
-  padding: 0;
-  font-size: 12px;
-}
-
-.multi-select-container input {
-  border: none;
-  outline: none;
-  padding: 8px;
-  flex-grow: 1;
-  min-width: 150px;
-  background: transparent;
-}
-
-.member-dropdown {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  right: 0;
-  background: white;
-  border: 1px solid #ddd;
-  border-top: none;
-  border-radius: 0 0 4px 4px;
-  max-height: 200px;
-  overflow-y: auto;
-  z-index: 10;
-}
-
-.dropdown-item {
-  padding: 8px 12px;
-  cursor: pointer;
-}
-
-.dropdown-item:hover {
-  background-color: #f5f5f5;
-}
-
-/* Recent Tasks */
-.recent-tasks {
-  background-color: white;
-  border-radius: 8px;
-  padding: 25px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
-}
-
-.task-list {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 20px;
-}
-
-.task-card {
-  border: 1px solid #eee;
-  border-radius: 8px;
-  padding: 15px;
-  cursor: pointer;
-  transition: transform 0.2s, box-shadow 0.2s;
-}
-
-.task-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
-}
-
-.task-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 10px;
-}
-
-.task-header h3 {
-  margin: 0;
-  font-size: 16px;
-  color: #2c3e50;
-}
-
-.task-status {
-  font-size: 12px;
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-weight: 500;
-}
-
-.task-status.completed {
-  background-color: #d5f5e3;
-  color: #27ae60;
-}
-
-.task-status.in-progress {
-  background-color: #fef9e7;
-  color: #f39c12;
-}
-
-.task-status.overdue {
-  background-color: #fadbd8;
-  color: #e74c3c;
-}
-
-.task-status.pending {
-  background-color: #ebf5fb;
-  color: #3498db;
-}
-
-.task-description {
-  color: #7f8c8d;
-  font-size: 14px;
-  margin-bottom: 15px;
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.task-footer {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 13px;
-  color: #7f8c8d;
-}
-
-.task-assignee {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  flex-wrap: wrap;
-}
-
-.task-deadline {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-}
-
-.task-deadline.urgent {
-  color: #e74c3c;
-  font-weight: 500;
-}
-
-/* Task Detail Modal */
-.task-detail-modal {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: rgba(0, 0, 0, 0.7);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 1000;
-  padding: 20px;
-}
-
-.modal-content {
-  background-color: white;
-  border-radius: 8px;
-  width: 90%;
-  max-width: 1200px;
-  max-height: 90vh;
-  overflow-y: auto;
-  padding: 30px;
-  position: relative;
-  box-shadow: 0 5px 30px rgba(0, 0, 0, 0.3);
-}
-
-.close-modal {
-  position: absolute;
-  top: 15px;
-  right: 15px;
-  background: none;
-  border: none;
-  font-size: 20px;
-  cursor: pointer;
-  color: #666;
-  width: 40px;
-  height: 40px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-}
-
-.close-modal:hover {
-  background-color: #f5f5f5;
-}
-
-.task-detail-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
-  padding-bottom: 15px;
-  border-bottom: 1px solid #eee;
-}
-
-.task-detail-header h2 {
-  margin: 0;
-  font-size: 24px;
-  color: #2c3e50;
-}
-
-.task-header-actions {
-  display: flex;
-  align-items: center;
-  gap: 15px;
-}
-
-.status-update-btn {
-  background-color: #3498db;
-  color: white;
-  border: none;
-  padding: 8px 15px;
-  border-radius: 4px;
-  font-size: 14px;
-  cursor: pointer;
-  transition: background-color 0.3s;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.status-update-btn:hover {
-  background-color: #2980b9;
-}
-
-.task-detail-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 30px;
-}
-
-.detail-section {
-  margin-bottom: 25px;
-}
-
-.detail-section h3 {
-  margin-top: 0;
-  margin-bottom: 15px;
-  font-size: 18px;
-  color: #2c3e50;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-/* Timeline styles */
-.timeline {
-  position: relative;
-  padding-left: 20px;
-}
-
-.timeline::before {
-  content: '';
-  position: absolute;
-  left: 7px;
-  top: 0;
-  bottom: 0;
-  width: 2px;
-  background-color: #e0e0e0;
-}
-
-.timeline-item {
-  position: relative;
-  margin-bottom: 15px;
-  display: flex;
-  align-items: flex-start;
-}
-
-.timeline-dot {
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background-color: #4a89dc;
-  position: absolute;
-  left: -23px;
-  top: 2px;
-}
-
-.timeline-date {
-  width: 80px;
-  font-size: 13px;
-  color: #7f8c8d;
-  flex-shrink: 0;
-}
-
-.timeline-content {
-  flex: 1;
-  padding-left: 10px;
-  font-size: 14px;
-}
-
-/* Subtasks styles */
-.subtasks-list {
-  border: 1px solid #eee;
-  border-radius: 6px;
-  overflow: hidden;
-}
-
-.subtask-item {
-  display: flex;
-  align-items: center;
-  padding: 12px 15px;
-  border-bottom: 1px solid #eee;
-  background-color: #f9f9f9;
-}
-
-.subtask-item:last-child {
-  border-bottom: none;
-}
-
-.subtask-item input[type="checkbox"] {
-  margin-right: 12px;
-}
-
-.subtask-item label {
-  flex: 1;
-  font-size: 14px;
-}
-
-.subtask-item label.completed {
-  text-decoration: line-through;
-  color: #7f8c8d;
-}
-
-.subtask-status {
-  font-size: 12px;
-  padding: 4px 8px;
-  border-radius: 4px;
-  background-color: #ebf5fb;
-  color: #3498db;
-}
-
-.subtask-item.completed .subtask-status {
-  background-color: #d5f5e3;
-  color: #27ae60;
-}
-
-.add-subtask {
-  display: flex;
-  padding: 10px;
-  background-color: white;
-}
-
-.add-subtask input {
-  flex: 1;
-  padding: 8px;
-  border: 1px solid #ddd;
-  border-radius: 4px 0 0 4px;
-  outline: none;
-}
-
-.add-subtask-btn {
-  background-color: #4a89dc;
-  color: white;
-  border: none;
-  padding: 0 15px;
-  border-radius: 0 4px 4px 0;
-  cursor: pointer;
-  transition: background-color 0.3s;
-}
-
-.add-subtask-btn:hover {
-  background-color: #3a70c2;
-}
-
-/* Attachments styles */
-.attachments {
-  border: 1px solid #eee;
-  border-radius: 6px;
-  padding: 10px;
-}
-
-.file-item {
-  display: flex;
-  align-items: center;
-  padding: 10px;
-  margin-bottom: 8px;
-  background-color: #f9f9f9;
-  border-radius: 4px;
-}
-
-.file-item i {
-  font-size: 20px;
-  margin-right: 12px;
-  color: #7f8c8d;
-}
-
-.file-info {
-  flex: 1;
-}
-
-.file-name {
-  display: block;
-  font-size: 14px;
-  margin-bottom: 2px;
-}
-
-.file-size {
-  font-size: 12px;
-  color: #7f8c8d;
-}
-
-.download-btn {
-  color: #4a89dc;
-  text-decoration: none;
-  margin-left: 10px;
-  padding: 5px 10px;
-  border-radius: 4px;
-  transition: background-color 0.3s;
-}
-
-.download-btn:hover {
-  background-color: #ebf5fb;
-}
-
-.upload-area {
-  margin-top: 15px;
-}
-
-#file-upload {
-  display: none;
-}
-
-.upload-btn {
-  display: inline-block;
-  background-color: #f5f7fa;
-  color: #4a89dc;
-  padding: 8px 15px;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: background-color 0.3s;
-  font-size: 14px;
-}
-
-.upload-btn:hover {
-  background-color: #e0e8f0;
-}
-
-/* Assignee styles */
-.assignee-list {
-  border: 1px solid #eee;
-  border-radius: 6px;
-  overflow: hidden;
-}
-
-.assignee-card {
-  display: flex;
-  align-items: center;
-  padding: 15px;
-  border-bottom: 1px solid #eee;
-  background-color: #f9f9f9;
-}
-
-.assignee-card:last-child {
-  border-bottom: none;
-}
-
-.assignee-avatar {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  color: white;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: bold;
-  margin-right: 15px;
-  flex-shrink: 0;
-  font-size: 14px;
-}
-
-.assignee-info {
-  flex: 1;
-  min-width: 0;
-}
-
-.assignee-name {
-  font-weight: 500;
-  margin-bottom: 2px;
-}
-
-.assignee-email {
-  font-size: 12px;
-  color: #7f8c8d;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.assignee-role {
-  font-size: 12px;
-  color: #3498db;
-  font-weight: 500;
-}
-
-.assignee-progress {
-  width: 150px;
-  flex-shrink: 0;
-}
-
-.progress-bar {
-  height: 8px;
-  background-color: #e0e0e0;
-  border-radius: 4px;
-  overflow: hidden;
-  margin-bottom: 4px;
-}
-
-.progress-fill {
-  height: 100%;
-  transition: width 0.3s ease;
-}
-
-.progress-fill.high { background-color: #4CAF50; }
-.progress-fill.medium { background-color: #FFC107; }
-.progress-fill.low { background-color: #F44336; }
-
-.progress-text {
-  font-size: 12px;
-  text-align: right;
-  color: #666;
-}
-
-/* Metrics grid */
-.metrics-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 15px;
-  margin-bottom: 20px;
-}
-
-.metric-card {
-  background-color: #f5f7fa;
-  padding: 15px;
-  border-radius: 6px;
-  text-align: center;
-  position: relative;
-}
-
-.metric-value {
-  font-size: 24px;
-  font-weight: bold;
-  color: #2c3e50;
-  margin-bottom: 5px;
-}
-
-.metric-label {
-  font-size: 13px;
-  color: #7f8c8d;
-  margin-bottom: 5px;
-}
-
-.metric-trend {
-  font-size: 12px;
-  font-weight: 500;
-}
-
-.metric-trend.up {
-  color: #4CAF50;
-}
-
-.metric-trend.down {
-  color: #F44336;
-}
-
-.metric-trend.good {
-  color: #4CAF50;
-}
-
-.metric-trend.bad {
-  color: #F44336;
-}
-
-/* Progress chart */
-.progress-chart {
-  background-color: white;
-  border: 1px solid #eee;
-  border-radius: 6px;
-  padding: 15px;
-  margin-top: 20px;
-}
-
-.progress-chart h4 {
-  margin-top: 0;
-  margin-bottom: 15px;
-  font-size: 15px;
-  color: #2c3e50;
-}
-
-.chart-bars {
-  display: flex;
-  height: 150px;
-  align-items: flex-end;
-  gap: 10px;
-  padding-top: 20px;
-}
-
-.chart-bar-container {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  height: 100%;
-}
-
-.chart-bar {
-  width: 30px;
-  background-color: #4a89dc;
-  border-radius: 4px 4px 0 0;
-  transition: height 0.5s ease;
-}
-
-.chart-label {
-  margin-top: 8px;
-  font-size: 12px;
-  color: #7f8c8d;
-}
-
-/* Comments section */
-.comments-section {
-  max-height: 400px;
-  overflow-y: auto;
-  padding-right: 10px;
-}
-
-.comment {
-  display: flex;
-  gap: 15px;
-  padding: 15px;
-  margin-bottom: 15px;
-  background-color: white;
-  border: 1px solid #eee;
-  border-radius: 8px;
-}
-
-.comment-avatar {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  color: white;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: bold;
-  flex-shrink: 0;
-  font-size: 14px;
-}
-
-.comment-content {
-  flex: 1;
-  min-width: 0;
-}
-
-.comment-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 8px;
-}
-
-.comment-author {
-  font-weight: 500;
-  color: #2c3e50;
-}
-
-.comment-date {
-  font-size: 12px;
-  color: #7f8c8d;
-}
-
-.comment-text {
-  font-size: 14px;
-  line-height: 1.5;
-  margin-bottom: 10px;
-}
-
-.comment-attachments {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 10px;
-}
-
-.comment-file {
-  font-size: 12px;
-  color: #4a89dc;
-  text-decoration: none;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  padding: 4px 8px;
-  background-color: #ebf5fb;
-  border-radius: 4px;
-}
-
-.comment-file:hover {
-  text-decoration: underline;
-}
-
-.add-comment {
-  display: flex;
-  gap: 15px;
-  padding: 15px;
-  background-color: white;
-  border: 1px solid #eee;
-  border-radius: 8px;
-  margin-top: 20px;
-}
-
-.comment-input {
-  flex: 1;
-}
-
-.comment-input textarea {
-  width: 100%;
-  padding: 12px;
-  border: 1px solid #ddd;
-  border-radius: 6px;
-  resize: vertical;
-  min-height: 80px;
-  margin-bottom: 10px;
-  font-family: inherit;
-  font-size: 14px;
-}
-
-.comment-actions {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.attach-btn {
-  color: #7f8c8d;
-  cursor: pointer;
-  padding: 8px;
-  border-radius: 4px;
-  transition: background-color 0.3s;
-}
-
-.attach-btn:hover {
-  background-color: #f5f5f5;
-}
-
-.comment-btn {
-  background-color: #4a89dc;
-  color: white;
-  border: none;
-  padding: 8px 15px;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: background-color 0.3s;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.comment-btn:hover {
-  background-color: #3a70c2;
-}
-
-/* Responsive adjustments */
-@media (max-width: 992px) {
-  .task-detail-grid {
-    grid-template-columns: 1fr;
-  }
-  
-  .stats-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-  
-  .form-row {
-    grid-template-columns: 1fr;
-  }
-}
-
-@media (max-width: 768px) {
-  .header-content {
-    flex-direction: column;
-    gap: 10px;
-  }
-  
-  .stats-grid {
-    grid-template-columns: 1fr;
-  }
-  
-  .task-list {
-    grid-template-columns: 1fr;
-  }
-  
-  .metrics-grid {
-    grid-template-columns: 1fr;
-  }
-}
+@import '../assets/css/dashboard.css';
 </style>

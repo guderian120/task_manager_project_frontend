@@ -3,7 +3,7 @@
     <!-- Header Section -->
     <header class="dashboard-header">
       <div class="header-content">
-        <h1>Welcome, {{ currentUser.name }}!</h1>
+        <h5>Welcome, {{ currentUser.name }}!</h5>
         <div class="user-actions">
           <button @click="refreshData" class="refresh-btn">
             <i class="fas fa-sync-alt"></i> Refresh
@@ -54,7 +54,7 @@
                 <button @click.stop="editGoal(goal)" class="icon-btn">
                   <i class="fas fa-edit"></i>
                 </button>
-                <button @click.stop="deleteGoal(goal.id)" class="icon-btn">
+                <button @click.stop="deleteGoal(goal.goalId)" class="icon-btn">
                   <i class="fas fa-trash"></i>
                 </button>
               </div>
@@ -151,7 +151,7 @@
           <div class="form-row">
             <div class="form-group">
               <label>Due Date</label>
-              <input v-model="goalForm.dueDate" type="date">
+              <input v-model="goalForm.dueDate" type="date" required>
             </div>
             
             <div class="form-group">
@@ -161,8 +161,8 @@
           </div>
           <div class="form-group">
             <label>Link to Task (optional)</label>
-            <select v-model="goalForm.taskId">
-              <option disabled value="">-- Select a Task --</option>
+            <select v-model="goalForm.taskId" required>
+              <option  disabled value="">-- Select a Task --</option>
               <option v-for="task in userTasks" :key="task.taskId" :value="task.taskId">
                 {{ task.title }}
               </option>
@@ -454,11 +454,13 @@ async cycleTaskStatus(taskId, currentStatus) {
     description: goal.description,
     dueDate: goal.dueDate,
     progress: goal.progress,
-    taskId: goal.taskId || ''  // Include existing task linkage
+    taskId: goal.taskId || '' , // Include existing task linkage
+    goalId: goal.goalId // Include goal ID for updates
   };
   this.editingGoal = goal;
   this.showGoalForm = true;
 },
+  
     
     closeGoalForm() {
       this.showGoalForm = false;
@@ -499,8 +501,13 @@ async cycleTaskStatus(taskId, currentStatus) {
       },
       body: JSON.stringify(goalData),
     });
-
+  
+    this.showNotification('Goal created / updated successfully! Reloading...', 'success');
+    
+    // Reload the page after 1.5 seconds (enough time to see the toast)
+   
     if (response.ok) {
+
       await this.fetchUserGoals();
       this.closeGoalForm();
     } else {
@@ -515,21 +522,25 @@ async cycleTaskStatus(taskId, currentStatus) {
     
     async deleteGoal(goalId) {
       if (!confirm('Are you sure you want to delete this goal?')) return;
-      
+      console.log(goalId)
       try {
         const session = await Auth.currentSession();
         const idToken = session.getIdToken().getJwtToken();
-        
+        console.log(goalId)
         const response = await fetch(`https://3c0x6315c2.execute-api.eu-west-1.amazonaws.com/prod/goals/${goalId}`, {
           method: 'DELETE',
           headers: {
             'Authorization': `Bearer ${idToken}`,
             'Content-Type': 'application/json'
-          }
+          },
+          body: JSON.stringify({ goalId })
         });
         
         if (response.ok) {
+            this.showNotification('Goal successfully deleted! ...', 'success');
           await this.fetchUserGoals();
+    
+    // Reload the page after 1.5 seconds (enough time to see the toast)
         } else {
           throw new Error('Failed to delete goal');
         }
@@ -677,6 +688,11 @@ async cycleTaskStatus(taskId, currentStatus) {
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
+.header-content {
+  display: flex;
+  align-items: center;
+  gap: 20px; /* This adds equal spacing between all flex children */
+}
 .dashboard-header {
   display: flex;
   justify-content: space-between;
@@ -686,9 +702,9 @@ async cycleTaskStatus(taskId, currentStatus) {
   border-bottom: 1px solid #eee;
 }
 
-.dashboard-header h1 {
+.dashboard-header h5 {
   margin: 0;
-  color: #2c3e50;
+  color:  #eee;
 }
 
 .user-actions {

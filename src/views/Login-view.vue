@@ -63,9 +63,9 @@
       </div>
     </form>
     
-    <div class="auth-footer">
-      <p>Don't have an account? <router-link to="/signup" class="auth-link">Sign up</router-link></p>
-    </div>
+    <!-- <div class="auth-footer">
+      <p>Don't have an account? <router-link to="/signup"   class="auth-link">Sign up</router-link></p>
+    </div> -->
     
     <!-- Verification Modal -->
     <div v-if="showVerificationModal" class="modal-overlay">
