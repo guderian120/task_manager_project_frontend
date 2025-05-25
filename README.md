@@ -1,6 +1,6 @@
 # 🛠️ Full Beginner Guide: Vue + AWS Amplify Authentication with Cognito + S3 Frontend Hosting
 
-This guide documents every step we took to build a Vue.js frontend integrated with AWS Cognito for authentication, hosted on S3. It is tailored for beginners and includes all CLI commands, code snippets, and configuration details.
+This guide documents every step we took to build a Vue.js frontend integrated with AWS Cognito for authentication, hosted on S3. It includes all CLI commands, code snippets, and configuration details.
 
 ---
 
@@ -18,7 +18,7 @@ Build a cloud-native **Task Manager** app where users can:
 
 ## ✅ Prerequisites
 
-* Node.js & npm installed
+* Node.js & npm installed 
 * AWS CLI configured (`aws configure`)
 * Vue CLI installed:
 
@@ -91,6 +91,7 @@ Copy the returned **Client ID**.
 ---
 
 ## 5. 📦 Downgrade Amplify to v5 (v6 breaks flat Auth config)
+# If using the latest version of Amplify, you will encounter some errors, downgrading provides a simple workaround
 
 ```bash
 npm uninstall aws-amplify @aws-amplify/ui @aws-amplify/ui-vue
@@ -134,11 +135,11 @@ createApp(App).use(router).mount('#app')
 
 ## 7. 👥 Authentication Pages
 
-### `Login.vue`
+### `Login-view.vue`
 
 Handles login with `Auth.signIn()`.
 
-### `Signup.vue`
+### `Signup-view.vue`
 
 Supports:
 
@@ -146,7 +147,7 @@ Supports:
 * Email confirmation code input
 * Resend code functionality
 
-### `ForgotPassword.vue`
+### `Forgot-Password.vue`
 
 Supports:
 
@@ -199,7 +200,7 @@ aws s3 sync dist/ s3://my-task-frontend --delete
 To access the site:
 
 ```bash
-open https://my-task-frontend.s3.eu-west-1.amazonaws.com/index.html
+open https://<s3_bucket_name>.s3.eu-west-1.amazonaws.com/index.html
 ```
 
 Or configure S3 static website hosting.

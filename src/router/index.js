@@ -7,9 +7,10 @@ import DashboardAdmin from '../views/Dashboard-Admin.vue';
 import DashboardUser from '../views/Dashboard-User.vue';
 import NotFound from '../views/Not-Found.vue';
 
+
+// Below are all the routes in this application
 const routes = [
   { path: '/', name: 'Login', component: Login },
-  { path: '/signup', name: 'Signup', component: Login },
   { path: '/forgot-password', name: 'ForgotPassword', component: ForgotPassword },
   {
     path: '/dashboard-admin',
@@ -23,7 +24,7 @@ const routes = [
     component: DashboardUser,
     meta: { requiresAuth: true, requiresUser: true }
   },
-  // ❗️Keep this LAST to catch all unmatched routes
+  
   {
     path: '/:pathMatch(.*)*',
     name: 'NotFound',
@@ -36,19 +37,23 @@ const router = createRouter({
   routes
 });
 
-// 🔐 Route Guard
-router.beforeEach(async (to, from, next) => {
-  const publicPaths = ['/', '/signup', '/forgot-password'];
+// Route Guard: This is a logic to ensure that all routes are protected
 
-  // ✅ Allow public routes
-  if (publicPaths.includes(to.path)) return next();
 
-  // ✅ Allow unmatched routes to go to NotFound
-  if (!to.matched.length) return next();
+router.beforeEach(async (to, from, next) => { 
+  // public paths do not need any authentication
+  const publicPaths = ['/', '/forgot-password', '/:pathMatch(.*)*'];
 
-  // ✅ For matched protected routes, check authentication
+  //  Allow public routes
+ if (publicPaths.includes(to.path) || !to.matched.length) {
+    return next();
+  }
+
+
+  // For matched protected routes, check authentication before procedding
   try {
     const user = await Auth.currentAuthenticatedUser();
+    // get the group of the authenticated user
     const groups = user.signInUserSession.idToken.payload['cognito:groups'] || [];
     const isAdmin = groups.includes('Admin');
 

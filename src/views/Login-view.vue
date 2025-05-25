@@ -68,25 +68,17 @@
     </div> -->
     
     <!-- Verification Modal -->
-    <div v-if="showVerificationModal" class="modal-overlay">
+      <div v-if="showOtpModal" class="modal-overlay" @click.self="closeModal">
       <div class="otp-modal">
-        <button class="close-modal" @click="closeVerificationModal">
+        <button class="close-modal" @click="closeModal">
           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <line x1="18" y1="6" x2="6" y2="18"></line>
             <line x1="6" y1="6" x2="18" y2="18"></line>
           </svg>
         </button>
         
-        <div class="verification-header">
-          <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-            <polyline points="22 4 12 14.01 9 11.01"></polyline>
-          </svg>
-          <h2>Verify Your Email</h2>
-          <p class="otp-instructions">Task Management System requires email verification</p>
-        </div>
-        
-        <p class="otp-subtext">We've sent a 6-digit verification code to <strong>{{ email }}</strong></p>
+        <h2>Verify Your Email</h2>
+        <p class="otp-instructions">We've sent a 6-digit code to <strong>{{ email }}</strong></p>
         
         <div class="otp-input-container">
           <input 
@@ -96,35 +88,26 @@
             type="text"
             maxlength="1"
             class="otp-input"
-            @input="handleOtpInput(n, $event)"
-            @keydown.delete="handleOtpDelete(n, $event)"
+            @input="focusNext(n, $event)"
+            @keydown.delete="focusPrev(n, $event)"
             ref="otpInputs"
           >
         </div>
+        <div v-if="message" class="message success-message">
+      {{ message }}
+        </div>
         
-    <button @click="verifyOtp" class="auth-btn verify-btn" :disabled="isVerifying">
-    <span v-if="!isVerifying">Verify Email</span>
-    <span v-else class="verifying-text">
-      <svg class="spinner" viewBox="0 0 50 50">
-        <circle class="path" cx="25" cy="25" r="20" fill="none" stroke-width="5"></circle>
-      </svg>
-      Verifying...
-    </span>
-  </button>
-
-  <!-- Add this success/error message below the verify button -->
-      <div v-if="verificationMessage" class="message" :class="{
-        'success-message': verificationStatus === 'success',
-        'error-message': verificationStatus === 'error'
-      }">
-        {{ verificationMessage }}
-      </div>
+        <div v-if="error" class="message error-message">
+          {{ error }}
+        </div>
+        <button @click="verifyOtp" class="auth-btn verify-btn">
+          Verify Account
+        </button>
         
         <p class="resend-text">
           Didn't receive code? 
-          <a href="#" @click.prevent="resendVerification" class="resend-link" :class="{ disabled: resendCooldown > 0 }">
-            Resend {{ resendCooldown > 0 ? `(${resendCooldown}s)` : '' }}
-          </a>
+          <a href="#" @click.prevent="resendOtp" class="resend-link">Resend</a>
+          <span v-if="resendCooldown"> in {{ resendCooldown }}s</span>
         </p>
       </div>
     </div>
@@ -162,11 +145,13 @@
     <div v-if="passwordError" class="message error-message">{{ passwordError }}</div>
   </div>
 </div>
+
+
   </div>
 </template>
 
 <script>
-import { Auth } from 'aws-amplify'
+import { Auth } from 'aws-amplify';
 
 export default {
   name: 'LoginView',
@@ -179,174 +164,249 @@ export default {
       newPassword: '',
       isSettingPassword: false,
       passwordError: '',
-
-      showVerificationModal: false,
+      message: '',
+      showOtpModal: false,
       otp: Array(6).fill(''),
       resendCooldown: 0,
       cooldownInterval: null,
-       isVerifying: false,
+      isVerifying: false,
       verificationMessage: '',
       verificationStatus: '', // 'success' or 'error'
+      userForNewPassword: null,
+      currentAuthenticatedUser: null
     }
   },
   methods: {
-  
-   async closeNewPasswordModal() {
-  this.showNewPasswordModal = false
-  this.newPassword = ''
-  this.passwordError = ''
-},
-  async signIn() {
-  this.error = ''
-  try {
-    const user = await Auth.signIn(this.email, this.password)
-    console.log('Signed in user:', user)
-    if (user.challengeName === 'NEW_PASSWORD_REQUIRED') {
-          this.showNewPasswordModal = true
-          this.userForNewPassword = user
-          return
-        }
-    // Get group info from token
-    const groups = user.signInUserSession.accessToken.payload['cognito:groups']
-    console.log('User groups:', groups)
+    async closeNewPasswordModal() {
+      this.showNewPasswordModal = false;
+      this.newPassword = '';
+      this.passwordError = '';
+    },
 
-    if (groups && groups.includes('Admin')) {
-      this.$router.push('/dashboard-admin')
-    } else {
-      this.$router.push('/dashboard-user')
-    }
-
-  } catch (err) {
-    this.error = err.message || 'Login failed'
-    console.error('Auth error:', err)
-  }
-},
-async submitNewPassword() {
-  this.isSettingPassword = true
-  this.passwordError = ''
-
-  try {
-    const completedUser = await Auth.completeNewPassword(
-      this.userForNewPassword,
-      this.newPassword
-    )
-
-    const groups = completedUser.signInUserSession.accessToken.payload['cognito:groups']
-    this.showNewPasswordModal = false
-
-    if (groups && groups.includes('Admin')) {
-      this.$router.push('/dashboard-admin')
-    } else {
-      this.$router.push('/dashboard-user')
-    }
-
-  } catch (err) {
-    this.passwordError = err.message || 'Failed to set new password'
-    console.error('Password error:', err)
-  } finally {
-    this.isSettingPassword = false
-  }
-},
-    
-    async showResendVerification() {
-      if (!this.email) {
-        this.error = 'Please enter your email first'
-        return
-      }
-      
+    async signIn() {
+      this.error = '';
+      this.message = '';
+      console.log('Signing in with email:', this.email);
       try {
-        await this.showVerificationFlow()
+        const user = await Auth.signIn(this.email, this.password);
+        this.currentAuthenticatedUser = user;
+
+        // Handle NEW_PASSWORD_REQUIRED challenge
+        if (user.challengeName === 'NEW_PASSWORD_REQUIRED') {
+          this.showNewPasswordModal = true;
+          this.userForNewPassword = user;
+          return;
+        }
+
+        // Check email verification status
+        try {
+          const currentSession = await Auth.currentSession();
+          const emailVerified = currentSession.getIdToken().payload['email_verified'];
+          
+          if (!emailVerified) {
+            this.message = 'Your email is not verified. We\'ve sent a verification code.';
+            await this.showVerificationFlow();
+            this.startResendCooldown();
+            return;
+          }
+
+          // Proceed with normal login
+          await this.handleSuccessfulLogin(user);
+        } catch (sessionError) {
+          console.error('Session error:', sessionError);
+          // Fallback to attributes check
+          if (user.attributes && !user.attributes.email_verified) {
+            this.message = 'Your email is not verified. We\'ve sent a verification code.';
+            await this.showVerificationFlow();
+            this.startResendCooldown();
+            return;
+          }
+          await this.handleSuccessfulLogin(user);
+        }
+
       } catch (err) {
-        this.error = 'Failed to send verification. Please try again.'
+        console.error('Auth error:', err);
+        if (err.code === 'UserNotConfirmedException') {
+          await this.handleUnconfirmedUser();
+        } else if (err.code === 'PasswordResetRequiredException') {
+          this.error = 'Password reset required. Please check your email.';
+        } else {
+          this.error = err.message || 'Login failed';
+        }
+      }
+    },
+
+    async handleUnconfirmedUser() {
+      try {
+        // Try resending code for unconfirmed user
+        await Auth.resendSignUp(this.email);
+        this.message = 'Your account is not confirmed. We\'ve resent the verification code.';
+        this.showOtpModal = true;
+        this.startResendCooldown();
+      } catch (resendError) {
+        if (resendError.code === 'InvalidParameterException' && 
+            resendError.message.includes('already confirmed')) {
+          // User is confirmed but email might not be verified
+          this.message = 'We\'ve sent a verification code to your email.';
+          await this.showVerificationFlow();
+          this.startResendCooldown();
+        } else {
+          this.error = 'Failed to send verification. Please try again.';
+        }
       }
     },
     
+    async handleSuccessfulLogin(user) {
+      const groups = user.signInUserSession?.accessToken?.payload['cognito:groups'] || [];
+      const currentSession = await Auth.currentSession();
+          const emailVerified = currentSession.getIdToken().payload['email_verified'];
+          
+          if (!emailVerified) {
+            this.message = 'Your email is not verified. We\'ve sent a verification code.';
+            await this.showVerificationFlow();
+            this.startResendCooldown();
+            return;
+          }
+      if (groups.includes('Admin')) {
+        this.$router.push('/dashboard-admin');
+      } else {
+        this.$router.push('/dashboard-user');
+      }
+    },
+
+    async submitNewPassword() {
+      this.isSettingPassword = true;
+      this.passwordError = '';
+
+      try {
+        const completedUser = await Auth.completeNewPassword(
+          this.userForNewPassword,
+          this.newPassword
+        );
+        this.currentAuthenticatedUser = completedUser;
+        this.showNewPasswordModal = false;
+        await this.handleSuccessfulLogin(completedUser);
+      } catch (err) {
+        this.passwordError = err.message || 'Failed to set new password';
+        console.error('Password error:', err);
+      } finally {
+        this.isSettingPassword = false;
+      }
+    },
+
     async showVerificationFlow() {
       try {
-        await Auth.resendSignUp(this.email)
-        this.showVerificationModal = true
-        this.startResendCooldown()
+        if (this.currentAuthenticatedUser) {
+          // For authenticated but unverified users
+          await Auth.verifyCurrentUserAttribute('email');
+        } else {
+          // For unconfirmed users (new sign-ups)
+          await Auth.resendSignUp(this.email);
+        }
+        this.showOtpModal = true;
+        this.startResendCooldown();
         this.$nextTick(() => {
-          this.$refs.otpInputs[0]?.focus()
-        })
+          if (this.$refs.otpInputs && this.$refs.otpInputs[0]) {
+            this.$refs.otpInputs[0].focus();
+          }
+        });
       } catch (err) {
-        this.error = err.message || 'Failed to send verification code'
-        throw err
+        console.error('Verification flow error:', err);
+        this.error = err.message || 'Failed to send verification code';
+        throw err;
       }
     },
-    
+
     async verifyOtp() {
-      const code = this.otp.join('')
+      const code = this.otp.join('');
       if (code.length !== 6) {
-        this.showVerificationFeedback('Please enter the complete 6-digit code', 'error')
-        return
+        this.error='Please enter the complete 6-digit code', 'error'
+        return;
       }
 
-      this.isVerifying = true
-      this.verificationMessage = ''
+      this.isVerifying = true;
+      this.verificationMessage = '';
+      console.log("Verifying opt now")
       
       try {
-        await Auth.confirmSignUp(this.email, code)
-        this.showVerificationFeedback('Verification successful! Logging you in...', 'success')
-        
-        // Automatically login after successful verification
-        setTimeout(async () => {
-          try {
-            await Auth.signIn(this.email, this.password)
-            this.$router.push('/dashboard-user')
-          } catch (loginErr) {
-            this.showVerificationFeedback('Login failed after verification. Please try logging in again.', 'error')
-          }
-        }, 1500)
-      } catch (err) {
-        let message = 'Verification failed. Please check the code and try again.'
-        if (err.code === 'CodeMismatchException') {
-          message = 'Incorrect verification code. Please try again.'
-        } else if (err.code === 'ExpiredCodeException') {
-          message = 'This code has expired. Please request a new one.'
+        console.log("in the try block")
+        if (this.currentAuthenticatedUser) {
+          console.log('first if')
+          // Verify email attribute for logged-in users
+          await Auth.verifyCurrentUserAttributeSubmit('email', code);
+          console.log('waiting ffor data')
+          // Refresh user attributes
+          const user = await Auth.currentAuthenticatedUser();
+          console.log('user got')
+          await Auth.updateUserAttributes(user, {});
+        } else {
+          // Confirm sign up for new users
+          await Auth.confirmSignUp(this.email, code);
         }
-        this.showVerificationFeedback(message, 'error')
+
+        this.message = 'Verification successful!', 'success'
+        
+        // If we have a logged in user, refresh their session
+        if (this.currentAuthenticatedUser) {
+          setTimeout(async () => {
+            try {
+              const user = await Auth.signIn(this.email, this.password);
+              await this.handleSuccessfulLogin(user);
+            } catch (loginErr) {
+              this.error = 'Please login again', 'error'
+            }
+          }, 1500);
+        } else {
+          // For new users, prompt them to login
+          setTimeout(() => {
+            this.closeVerificationModal();
+            this.message = 'Email verified successfully. Please login.';
+          }, 1500);
+        }
+      } catch (err) {
+        console.log('in the error ')
+        let message = 'Verification failed. Please check the code and try again.';
+
+        if (err.code === 'CodeMismatchException') {
+          message = 'Incorrect verification code. Please try again.';
+        } else if (err.code === 'ExpiredCodeException') {
+          message = 'This code has expired. Please request a new one.';
+        } else if (err.code === 'NotAuthorizedException') {
+          message = 'Your account is already verified. Please login.';
+        } else {
+          message = 'Ensure you have entered a valid username and password'
+        }
+        console.log('error message', message)
+        this.error = message, 'error'
       } finally {
-        this.isVerifying = false
+        console.log("in the final block")
+        this.isVerifying = false;
       }
     },
 
-    showVerificationFeedback(message, status) {
-      this.verificationMessage = message
-      this.verificationStatus = status
-      
-      // Clear success message after 5 seconds
-      if (status === 'success') {
-        setTimeout(() => {
-          if (this.verificationStatus === 'success') {
-            this.verificationMessage = ''
-          }
-        }, 5000)
-      }
-    },
-    
-    async resendVerification() {
+     async resendOtp() {
       if (this.resendCooldown > 0) return
       
       try {
         await Auth.resendSignUp(this.email)
+        this.message = 'New verification code sent!'
         this.startResendCooldown()
-        this.otp = Array(6).fill('')
+        this.resetOtp()
         this.$nextTick(() => {
           this.$refs.otpInputs[0].focus()
         })
       } catch (err) {
-        this.error = 'Failed to resend verification code'
+        this.error = err.message || 'Failed to resend code.'
       }
     },
     
-    handleOtpInput(index, event) {
+    focusNext(index, event) {
       if (event.target.value && index < 6) {
         this.$refs.otpInputs[index].focus()
       }
     },
     
-    handleOtpDelete(index, event) {
+    focusPrev(index, event) {
       if (!event.target.value && index > 1) {
         this.$refs.otpInputs[index-2].focus()
       }
@@ -363,10 +423,16 @@ async submitNewPassword() {
       }, 1000)
     },
     
-    closeVerificationModal() {
-      this.showVerificationModal = false
-      this.otp = Array(6).fill('')
-    }
+    resetOtp() {
+      this.otp = ['', '', '', '', '', '']
+    },
+    
+    closeModal() {
+      this.showOtpModal = false
+      this.resetOtp()
+    },
+    
+   
   },
   beforeUnmount() {
     if (this.cooldownInterval) {

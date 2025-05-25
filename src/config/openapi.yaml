@@ -1,0 +1,64 @@
+openapi: 3.0.1
+info:
+  title: TaskAPI
+  version: 1.0.0
+servers:
+  - url: https://3c0x6315c2.execute-api.eu-west-1.amazonaws.com/prod
+    description: Production API Gateway
+paths:
+  /tasks:
+    post:
+      summary: Create a new task
+      responses:
+        '201':
+          description: Task created
+    get:
+      summary: Retrieve all tasks
+      responses:
+        '200':
+          description: A list of tasks
+
+  /tasks/{taskId}/status:
+    put:
+      summary: Update the status of a task
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Status updated
+
+  /tasks/goals-progress:
+    get:
+      summary: Retrieve progress on goals
+      responses:
+        '200':
+          description: Goals progress retrieved
+
+  /goals:
+    post:
+      summary: Create a new goal
+      responses:
+        '201':
+          description: Goal created
+    get:
+      summary: Retrieve all goals
+      responses:
+        '200':
+          description: A list of goals
+
+  /goals/{goalId}:
+    delete:
+      summary: Delete a goal
+      parameters:
+        - name: goalId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Goal deleted

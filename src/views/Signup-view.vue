@@ -152,7 +152,7 @@ export default {
       }
     },
     
-    async resendOtp() {
+     async resendOtp() {
       if (this.resendCooldown > 0) return
       
       try {
