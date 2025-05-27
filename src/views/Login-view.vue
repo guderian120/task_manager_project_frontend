@@ -344,21 +344,19 @@ export default {
       try {
         console.log("in the try block")
         if (this.currentAuthenticatedUser) {
-          console.log('first if')
           // Verify email attribute for logged-in users
           await Auth.verifyCurrentUserAttributeSubmit('email', code);
           console.log('waiting ffor data')
           // Refresh user attributes
           const user = await Auth.currentAuthenticatedUser();
-          console.log('user got')
           await Auth.updateUserAttributes(user, {});
         } else {
           // Confirm sign up for new users
           await Auth.confirmSignUp(this.email, code);
         }
 
-        this.message = 'Verification successful!', 'success'
-        
+        this.message = 'Verification successful', 'success'
+       
         // If we have a logged in user, refresh their session
         if (this.currentAuthenticatedUser) {
           setTimeout(async () => {
@@ -366,15 +364,16 @@ export default {
               const user = await Auth.signIn(this.email, this.password);
               await this.handleSuccessfulLogin(user);
             } catch (loginErr) {
-              this.error = 'Please login again', 'error'
+              this.showOtpModal = false;
+             this.message = 'Email verified successfully. Please login.', 'success'
             }
           }, 1500);
         } else {
           // For new users, prompt them to login
           setTimeout(() => {
-            this.closeVerificationModal();
-            this.message = 'Email verified successfully. Please login.';
-          }, 1500);
+            this.showOtpModal = false;
+             this.message = 'Email verified successfully. Please login.';
+          }, 1000);
         }
       } catch (err) {
         console.log('in the error ')

@@ -625,7 +625,7 @@ getDeepProperty(obj, path) {
         const result = await response.json();
 
         const tasks = result.tasks || [];
-        this.recentTasks = tasks.slice(0, 5).map(task => ({
+        this.recentTasks = tasks.slice(0, 10).map(task => ({
           ...task,
           assignedTo: Array.isArray(task.assignedTo) 
             ? task.assignedTo.map(email => ({
@@ -648,10 +648,7 @@ getDeepProperty(obj, path) {
     },
     async fetchTeamMembers() {
       this.teamMembers = [
-        { name: 'Alex Johnson', email: 'alex@example.com', role: 'Frontend Developer' },
-        { name: 'Maria Garcia', email: 'maria@example.com', role: 'Backend Developer' },
-        { name: 'James Wilson', email: 'james@example.com', role: 'UI/UX Designer' },
-        { name: 'Sarah Chen', email: 'sarah@example.com', role: 'QA Engineer' }
+        
       ];
     },
     async getCurrentUser() {
