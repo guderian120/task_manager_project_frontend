@@ -5,11 +5,11 @@ The Task Management System is a web application built with Vue.js, designed to s
 
 ## 📚 Resources Table
 
-| Stack            | Description                            | GitHub Link(s)                                                                        |
-| --------------- | ---------------------------------- | ----------------------- | ------------------------------------------------------------------------------------- |
-| **Backend**  | AWS Lambda handles business logic, interacting with Amazon DynamoDB for data storage. | [Django Workspace System](https://github.com/guderian120/workspace-system-management) |
-| **Frontend** | Built with Vue.js, using AWS Amplify for authentication integration.  | This Repo                                                                                |
-| **Live Application**  | Explore the live application here    | [Task Manager](https://dangf6yk5kpeq.cloudfront.net/)                           |
+| Stack            | Description                                                                 | GitHub Link(s)                                                                        |
+|------------------|-----------------------------------------------------------------------------|--------------------------------------------------------------------------------------|
+| **Backend**      | AWS Lambda handles business logic, interacting with Amazon DynamoDB for data storage. | [Django Workspace System](https://github.com/guderian120/workspace-system-management) |
+| **Frontend**     | Built with Vue.js, using AWS Amplify for authentication integration.        | This Repo                                                                            |
+| **Live Application** | Explore the live application here                                        | [Task Manager](https://dangf6yk5kpeq.cloudfront.net/)                                |
 
 
 ## System Architecture
