@@ -182,7 +182,20 @@ export default {
       this.newPassword = '';
       this.passwordError = '';
     },
+ async showResendVerification() {
+      if (!this.email) {
+        this.error = 'Please enter your email first'
+        return
+      }
+      
+      try {
+        await this.showVerificationFlow()
+      } catch (err) {
+        this.error = 'Failed to send verification. User May already be verified.'
+      }
+    },
 
+    
     async signIn() {
       this.error = '';
       this.message = '';
