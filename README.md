@@ -31,19 +31,19 @@ The application uses a serverless architecture with the following components:
 3. AWS CloudFront serves the updated content, with cache invalidation triggered as needed.
 4. Route 53 (optional) may map a custom domain to the CloudFront distribution.
 
-![Github Actions](media/github_actions.png)
+![Github Actions](media/task_manager_github_actions.png)
 
 ## User Roles and Functionalities
 ### Admin
 - **Create Tasks**: Admins can create tasks with details (title, description, due date, assignee) stored in DynamoDB. An invite is sent to assignees with logins to their portals
 - **Manage Team Members**: Admins can add, remove, or update team members in Cognito and assign tasks.
 - **View All Tasks**: Admins access a dashboard showing all tasks and their statuses.
-![Admin Dashboard](media/admin_dashboard)
+![Admin Dashboard](media/task_manager_admin_dashboard.png)
 ### Team Member
 - **View Assigned Tasks**: Team members see tasks assigned to them, retrieved from DynamoDB.
 - **Set Goals**: Team members can create goals linked to tasks, stored as trackable items in DynamoDB.
 - **Track Progress**: Goals can be updated or marked complete, with changes reflected in the database.
-![User Dashboard](media/user_dashboard)
+![User Dashboard](media/task_manager_user_dashboard.png)
 
 ## Setup Instructions
 ### Prerequisites
@@ -132,21 +132,23 @@ The UI is designed to be intuitive, with AWS Amplify handling authentication flo
 ### Admin Dashboard
 - Displays all tasks and team members, fetched from DynamoDB via Lambda.
 - Includes buttons for task creation and team member management.
-- **Image Placeholder**: [Insert Admin Dashboard screenshot here]
-![Admin Dashboard](media/admin_task_detail_modal.png)
+- **Image Placeholder**: ![Admin Dashboard](media/task_manager_admin_task_details_modal.png)
+
+
 ### Task Creation Form
 - Form for admins to input task details, submitted to Lambda for storage in DynamoDB.
-- **Image Placeholder**: [Insert Task Creation Form screenshot here]
-![Admin Dashboard](media/admin_taskview.png)
+- **Image Placeholder**: ![Admin Dashboard](media/task_manager_admin_taskview.png)
+
+
 ### Team Member Task View
 - Lists tasks assigned to the team member, with options to set goals.
-- **Image Placeholder**: [Insert Team Member Task View screenshot here]
-![User Dashboard](media/user_dashboard.png)
+- **Image Placeholder**: ![User Dashboard](media/task_manager_user_dashboard.png)
+
 
 ### Goal Setting Interface
 - Allows team members to create and track goals, stored in DynamoDB.
-- **Image Placeholder**: [Insert Goal Setting Interface screenshot here]
-![User Dashboard](media/user_create_goal.png)
+- **Image Placeholder**: ![User Dashboard](media/task_manager_user_create_goal.png)
+
 
 
 
