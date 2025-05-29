@@ -127,27 +127,26 @@ The GitHub Actions workflow automates deployment to S3:
 3. Push updates to the `main` branch to trigger deployment.
 
 ## User Interface Description
-The UI is designed to be intuitive, with AWS Amplify handling authentication flows (e.g., login, signup). Below are key views with placeholders for your images.
-
+The UI is designed to be intuitive, with AWS Amplify handling authentication flows (e.g., login, signup). Below are key views of The Application
 ### Admin Dashboard
 - Displays all tasks and team members, fetched from DynamoDB via Lambda.
 - Includes buttons for task creation and team member management.
-- **Image Placeholder**: ![Admin Dashboard](media/task_manager_admin_task_details_modal.png)
+- **Admin Placeholder**: ![Admin Dashboard](media/task_manager_admin_task_details_modal.png)
 
 
 ### Task Creation Form
 - Form for admins to input task details, submitted to Lambda for storage in DynamoDB.
-- **Image Placeholder**: ![Admin Dashboard](media/task_manager_admin_taskview.png)
+- **Task Placeholder**: ![Admin Dashboard](media/task_manager_admin_taskview.png)
 
 
 ### Team Member Task View
 - Lists tasks assigned to the team member, with options to set goals.
-- **Image Placeholder**: ![User Dashboard](media/task_manager_user_dashboard.png)
+- **Team Placeholder**: ![User Dashboard](media/task_manager_user_dashboard.png)
 
 
 ### Goal Setting Interface
 - Allows team members to create and track goals, stored in DynamoDB.
-- **Image Placeholder**: ![User Dashboard](media/task_manager_user_create_goal.png)
+- **Goal Placeholder**: ![User Dashboard](media/task_manager_user_create_goal.png)
 
 
 
