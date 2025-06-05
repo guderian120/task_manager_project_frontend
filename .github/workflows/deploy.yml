@@ -4,6 +4,11 @@ on:
   push:
     branches:
       - main
+
+permissions:
+  id-token: write    # Required for OIDC auth with AWS
+  contents: read   
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -12,6 +17,12 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v3
+
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v4  
+      with:
+        role-to-assume: arn:aws:iam::288761743924:role/github-actions-lambda-role
+        aws-region: eu-west-1
 
     - name: Set up Node.js
       uses: actions/setup-node@v3
@@ -25,12 +36,15 @@ jobs:
       run: npm run build
 
     - name: Deploy to S3
-      uses: jakejarvis/s3-sync-action@master
-      with:
-        args: --delete
-      env:
-        AWS_S3_BUCKET: my-task-frontend
-        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        AWS_REGION: ${{ secrets.AWS_REGION }}
-        SOURCE_DIR: dist
+      run: |
+        aws s3 sync dist/ "s3://lambdacicdtest0123/lambda-zips/$zipfile" --delete
+
+
+    - name: Trigger Workflow  in Task_manager_infranstructure_Code
+      run: |
+          curl -X POST \
+            -H "Authorization: Bearer ${{ secrets.TASK_MANAGER_IAC_PAT }}" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/repos/guderian120/Task_manager_infranstructure_Code/actions/workflows/deploy.yml/dispatches \
+            -d '{"ref":"main"}'
+  
